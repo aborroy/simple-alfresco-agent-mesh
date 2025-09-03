@@ -1,0 +1,13 @@
+services:
+  mcp-router:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      TRANSPORT: "streamable-http"
+      HOST: "0.0.0.0"
+      PORT: "8085"
+      AUDIT_MCP_URL: "http://alfresco-mcp-audit:8081/mcp"
+      DOCS_MCP_URL:  "http://alfresco-mcp-server:8003/mcp"
+    ports:
+      - "8085:8085"

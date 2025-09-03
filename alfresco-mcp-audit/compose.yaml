@@ -1,0 +1,22 @@
+services:
+  alfresco-mcp-audit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alfresco-mcp-auditing:git
+    environment:
+      SPRING_AI_MCP_SERVER_PROTOCOL: "STREAMABLE"
+      SPRING_AI_MCP_SERVER_TYPE: "SYNC"
+      SPRING_AI_MCP_SERVER_STREAMABLE_HTTP_MCP_ENDPOINT: "/mcp"
+      SPRING_AI_MCP_SERVER_STREAMABLE_HTTP_KEEP_ALIVE_INTERVAL: "30s"
+      SPRING_MAIN_WEB_APPLICATION_TYPE: "servlet"
+      SPRING_AUTOCONFIGURE_EXCLUDE: >
+        org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration,
+        org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
+      SERVER_ADDRESS: "0.0.0.0"
+      SERVER_PORT: "8081"
+      CONTENT_SERVICE_URL: http://alfresco:8080
+      CONTENT_SERVICE_SECURITY_BASICAUTH_USERNAME: admin
+      CONTENT_SERVICE_SECURITY_BASICAUTH_PASSWORD: admin
+    ports:
+      - "8081:8081"

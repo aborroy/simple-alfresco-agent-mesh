@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "alfresco": {
+      "command": "mcp-proxy",
+      "args": ["--transport", "streamablehttp", "http://host.docker.internal:8085/mcp"]
+    }
+  }
+}
+
