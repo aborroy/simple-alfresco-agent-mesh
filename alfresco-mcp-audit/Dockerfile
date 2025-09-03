@@ -34,8 +34,6 @@ RUN useradd -r -u 10001 appuser
 COPY --from=build /workspace/app.jar ${APP_HOME}/app.jar
 
 EXPOSE 8081
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-CMD wget -q -O- http://127.0.0.1:8081/actuator/health | grep -q '"status":"UP"' || exit 1
 
 USER appuser
 
