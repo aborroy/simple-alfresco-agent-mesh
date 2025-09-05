@@ -1,13 +1,17 @@
 services:
-  mcp-router:
+  mcp-router-li:
     build:
       context: .
       dockerfile: Dockerfile
+    profiles: ["llamaindex"]  
     environment:
       TRANSPORT: "streamable-http"
       HOST: "0.0.0.0"
       PORT: "8085"
       AUDIT_MCP_URL: "http://alfresco-mcp-audit:8081/mcp"
       DOCS_MCP_URL:  "http://alfresco-mcp-server:8003/mcp"
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      OLLAMA_MODEL: "gpt-oss"
+      ROUTER_NAME: "alfresco-router"
     ports:
       - "8085:8085"

@@ -1,0 +1,4 @@
+include:
+  - alfresco-mcp-audit/compose.yaml
+  - alfresco-mcp-server/compose.yaml
+  - alfresco/compose.yaml

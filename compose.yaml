@@ -1,5 +1,7 @@
+# ./compose.yaml
+name: alfresco-agent-mesh-lab
+
 include:
-  - orchestrator/compose.yaml
-  - alfresco-mcp-audit/compose.yaml
-  - alfresco-mcp-server/compose.yaml
-  - alfresco/compose.yaml
+  - alfresco-agents/compose.yaml
+  - agent-mesh-tools/langgraph/compose.yaml
+  - agent-mesh-tools/llamaindex/compose.yaml

@@ -1,6 +1,10 @@
 # Simple Alfresco Agent Mesh
 
-A minimal stack that spins up:
+A hands-on lab to compare three routing options (**cagent**, **LangGraph**, **LlamaIndex**) over the same Alfresco setup
+
+The **mcp-client** always talks to MCP Server available in `localhost:8085`; one router is enabled at a time, which then fans out to **MCP Audit** and **MCP Docs**, both talking to the **Alfresco Repository**
+
+The stack that spins up:
 
 * Alfresco Community Repository including Audit sample configuration
 * Two MCP servers:
@@ -10,209 +14,165 @@ A minimal stack that spins up:
   * Docs MCP
     * Python `alfresco-mcp` server (content/doc tools)
     * Source code available in https://github.com/stevereiner/python-alfresco-mcp-server
-* An MCP Router/Orchestrator: tiny Python service built with **FastMCP** & **LangGraph** that classifies the user prompt and forwards the MCP call to the right backend (*audit* vs *docs*)
+* An MCP Router/Orchestrator (cagent, LangGraph or LlamaIndex): service that classifies the user prompt and forwards the MCP call to the right backend (*audit* vs *docs*)
 
 Designed to be easy to run locally, easy to understand, and a good template for building more sophisticated Agent Meshes
+
+
+## What’s inside
+
+```
+
+.
+├── agent-mesh-tools
+│   ├── cagent/               # Router with Docker cagent (LLM required)
+│   ├── langgraph/            # Router with LangGraph (deterministic, no LLM)
+│   └── llamaindex/           # Router with LlamaIndex (LLM required)
+├── alfresco-agents
+│   ├── alfresco/             # Alfresco Community stack (Repo, Share, Search, etc.)
+│   ├── alfresco-mcp-audit/   # MCP Audit server
+│   ├── alfresco-mcp-server/  # MCP Docs server
+│   └── compose.yaml          # Always-on: Repo + MCP backends
+├── mcp-client/               # Client used to test the active router
+└── compose.yaml              # Root compose with `include:` and profiles per router
+
+````
 
 ## Architecture
 
 ```mermaid
-flowchart TB
-    subgraph Host
-    
-      Client[[MCP Client / LLM]]
+flowchart LR
+  %% Client
+  C[mcp-client]
 
-      subgraph "MCP Backends"
-        AMCP[Audit MCP Spring AI - 8081 /mcp]
-        DMCP[Docs MCP Python - 8003 /mcp]
-      end
+  %% Routers
+  subgraph Routers
+    CA[cagent - router:8085]
+    LG[langgraph - router:8085]
+    LI[llamaindex - router:8085]
+  end
 
-      subgraph "Router"
-        R[FastMCP Router + LangGraph - 8085 /mcp]
-      end
+  %% MCP backends
+  subgraph MCP["MCP Servers"]
+    AU[MCP Audit - 8081]
+    DO[MCP Docs - 8003]
+  end
 
-      subgraph "Alfresco Stack"
-        A[Alfresco Repository - 8080]
-      end
+  %% Alfresco core
+  subgraph Alfresco
+    RE[Alfresco Repository - 8080]
+  end
 
-      Client <--> R
-      R <--> AMCP
-      R <--> DMCP
-      A <--> AMCP
-      A <--> DMCP
-    end
-```
+  %% Connections
+  C --> CA
+  C --> LG
+  C --> LI
+
+  CA --> AU
+  CA --> DO
+  LG --> AU
+  LG --> DO
+  LI --> AU
+  LI --> DO
+
+  AU --> RE
+  DO --> RE
+````
 
 * The **Router** is the single MCP endpoint for clients
 * It *classifies* each request and *delegates* to either the **Audit MCP** or **Docs MCP** backend over Streamable HTTP
 * Both backends talk to **Alfresco**
 
-## What’s included
+## Routers at a glance (pick one)
 
-* Alfresco Docker Compose (full stack) under `alfresco/`
-* Audit MCP (Java/Spring AI) under `alfresco-mcp-audit/`
-* Docs MCP (Python `alfresco-mcp`) under `alfresco-mcp-server/`
-* Router (FastMCP + LangGraph) under `orchestrator/`
-* Optional *CLI client* setup under `mcp-client-cmd/` to chat with the router using `mcp-cli`
+* **LangGraph** — *deterministic router, no LLM required*. Great for repeatable flows and simple, auditable routing rules.
+* **LlamaIndex** — *LLM-driven tool routing*. Uses the model to choose between Audit/Docs tools; more adaptive, needs an LLM.
+* **cagent** — *LLM-driven agent runtime (YAML)* with first-class MCP tool integration. It runs standalone as a CLI/TUI agent, as described in [Instantly Build AI Agents for Alfresco with Docker new "cagent"](https://connect.hyland.com/t5/alfresco-blog/instantly-build-ai-agents-for-alfresco-with-docker-new-quot/ba-p/492609)
 
-Root `compose.yaml` includes the three services needed for the mesh plus Alfresco
+## Requirements
+
+- Docker & Docker Compose v2+
+  Needed to run the full stack (Alfresco, MCP servers, routers, client).
+
+- System resources
+  At least 8 GB RAM free and 4 CPU cores recommended.
+
+- Open ports
+  - 8080 > Alfresco Repository  
+  - 8081 > MCP Audit  
+  - 8003 > MCP Docs  
+  - 8085 > Active router (LangGraph, or LlamaIndex)
+
+- LLM runtime
+  - For `cagent` and LlamaIndex, an LLM is required
+  - This lab uses [Ollama](https://ollama.ai/) with the local model `gpt-oss`
+  - Ensure Ollama is installed and the model is pulled before starting:
+    ```bash
+    ollama pull gpt-oss
+    ```
+
+- No LLM required
+  - LangGraph router works deterministically without an LLM
 
 ## Quick start
 
-**Prereqs**
-
-* Docker & Docker Compose
-* \~10–12 GB RAM free recommended (ACS + DB + MQ + search + 3 small services)
-* Ollama using `gpt-oss` LLM
-
-1) Bring the mesh up
+1. Start Alfresco Community + MCP backends
 
 ```bash
 docker compose up --build
 ```
 
-This starts:
-
-* Alfresco stack
-* Audit MCP on `:8081`
-* Docs MCP on `:8003`
-* Router on `:8085` (Streamable HTTP at `/mcp`)
-
-2) Talk to the Router (optional CLI container)
+2. Activate exactly one router (both expose `:8085`):
 
 ```bash
-docker compose -f mcp-client-cmd/compose.yaml run --rm mcp-client
+docker compose --profile langgraph up -d
 ```
 
-The container runs `mcp-cli` and points to the router via `server_config.json`.
-If you use **Ollama** locally, the client image forwards `127.0.0.1:11434` inside the container so “local” tools work.
-
-## Project layout
-
-```
-.
-├─ compose.yaml                  # root compose (includes the services below)
-├─ orchestrator/                 # FastMCP + LangGraph router
-│  ├─ router_server.py
-│  ├─ Dockerfile
-│  └─ compose.yaml               # exposes :8085 /mcp
-├─ alfresco-mcp-audit/           # Spring AI server (Audit MCP)
-│  ├─ Dockerfile
-│  ├─ compose.yaml               # exposes :8081 /mcp
-│  └─ pom.xml                    # build fix for upstream repo
-├─ alfresco-mcp-server/          # Python alfresco-mcp (Docs MCP)
-│  ├─ Dockerfile
-│  ├─ .env                       # ALFRESCO_URL, creds, transport, etc.
-│  └─ compose.yaml               # exposes :8003 /mcp
-├─ alfresco/                     # ACS full stack
-│  ├─ compose.yaml
-│  └─ .env
-└─ mcp-client-cmd/               # optional CLI client to chat with router
-   ├─ Dockerfile
-   ├─ compose.yaml
-   └─ server_config.json
+```bash
+docker compose --profile llamaindex up -d
 ```
 
-Root `compose.yaml`:
+> For `cagent` follow the steps in [Instantly Build AI Agents for Alfresco with Docker new "cagent"](https://connect.hyland.com/t5/alfresco-blog/instantly-build-ai-agents-for-alfresco-with-docker-new-quot/ba-p/492609)
 
-```yaml
-include:
-  - orchestrator/compose.yaml
-  - alfresco-mcp-audit/compose.yaml
-  - alfresco-mcp-server/compose.yaml
-  - alfresco/compose.yaml
+3. Test with the client (always hits 8085)
+
+```bash
+docker compose -f mcp-client/compose.yaml run --rm mcp-client
 ```
 
-## Health & endpoints
+4. Switch routers (keep Alfresco running)
 
-* Router: `http://localhost:8085/mcp`
-* Audit MCP: `http://localhost:8081/mcp`
-* Docs MCP: `http://localhost:8003/mcp`
-* Alfresco: `http://localhost:8080`
-
-## How the router works (LangGraph)
-
-### Classification logic
-
-The router is a **tiny FastMCP server** that **proxies tools** from two backends (namespaced) and uses a **LangGraph `StateGraph`** to decide where to send each request
-
-Key ideas from `orchestrator/router_server.py`:
-
-1. Backends and namespaces
-
-   * Two backends are registered: `audit` and `docs`
-   * When proxied, tools are **prefixed** (e.g., `audit_getEvents`, `docs_findDocument`), making discovery & filtering trivial
-
-2. Lightweight classifier (regex + heuristics)
-
-   * Regex patterns score the prompt toward one backend:
-     * Audit patterns: look for verbs/phrases like *“who deleted/modified”*, *“show activities/logs”*, *“permission changed”*, *“login/logout”*, *“compliance report”*, etc.
-     * Docs patterns: look for *“find/search document/file”*, *“download/upload/share”*, *“generate rendition/preview”*, *“metadata/properties of”*, *“list documents/folders”*, etc.
-   * Question indicators** bias routing:
-     * `who`, `when` > often audit
-     * `where`, `how` > often docs
-     * `what`, `why` > neutral
-   * Fallback heuristics if nothing matches strongly:
-     * Length: longer queries lean *docs* (content search/exploration)
-     * Action verbs: `show/list/get` > *audit*; `find/search/locate` > *docs*
-
-   The classifier returns a structured result: `{guess: "audit"|"docs", confidence, reason, matched_patterns[]}`. The router attaches this to the MCP trace for debugging
-
-3. LangGraph flow
-
-   * Graph nodes: `START > classify > (audit|docs) > END`
-   * The *classify* node runs the regex/heuristics, chooses a *target namespace*, and the *delegate* node forwards to the matching backend (via FastMCP proxy)
-   * If confidence is low (or a backend is down), the router can fall back or surface an actionable error
-
-4. Tooling for introspection
-
-   * `list_backend_tools`: lists all proxied tool names by backend
-   * `which_backend`: shows which URLs the router is pointing to
-
-Example prompts and likely routing:
-
+```bash
+docker compose --profile langgraph down
+docker compose --profile llamaindex up --build
 ```
-[DOCS]
+
+## Example prompts (copy/paste)
+
+### \[DOCS]
 
 > I need to search for documents in Alfresco. Can you search for:
-- Documents containing "budget"
-- Maximum 5 results
+>
+> * Documents containing "budget"
+> * Maximum 5 results
 
-[AUDIT]
+### \[AUDIT]
 
 > List Alfresco audit apps
 > List Alfresco audit entries for audit app "search"
-```
 
-## Troubleshooting
+Tips:
 
-Router returns connection or 5xx errors
+* If your router is *LangGraph*, routing is rule-based—logs/retention/compliance > **Audit**; search/metadata/renditions/transforms > **Docs**
+* If it’s *LlamaIndex* or *cagent*, ensure a model is configured (e.g., OpenAI/Anthropic/Gemini or a local model via Docker Model Runner)
 
-* Check backends are up:
+## Lab flow (recommended)
 
-  * Audit MCP: `curl -s http://localhost:8081/actuator/health` (expect `"status":"UP"`)
-  * Docs MCP: `curl -s http://localhost:8003/mcp` (should handshake)
-* Verify router env vars: `AUDIT_MCP_URL`, `DOCS_MCP_URL`.
+1. Bring up Alfresco + MCP (wait for health)
+2. Start LangGraph first (no keys needed) and run the prompts above
+3. Stop LangGraph, start LlamaIndex; repeat the prompts and observe differences in routing/answers
+4. Stop LlamaIndex, follow the steps in [Instantly Build AI Agents for Alfresco with Docker new "cagent"](https://connect.hyland.com/t5/alfresco-blog/instantly-build-ai-agents-for-alfresco-with-docker-new-quot/ba-p/492609)
 
-Client can’t reach router
-
-* Confirm it’s bound to `0.0.0.0:8085` and your client points to `http://localhost:8085/mcp`
-
-Ollama not visible inside the CLI container
-
-* On macOS/Windows you usually have `host.docker.internal`
-* On Linux, add:
-
-  ```yaml
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
-  ```
-
-  Or point the client directly to your host IP.
-
-Alfresco login fails
-
-* Recheck `alfresco/.env`. If you changed the admin password, update it everywhere (Audit/Docs MCP env too).
 
 ## License
 

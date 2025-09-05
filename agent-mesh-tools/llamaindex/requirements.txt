@@ -1,0 +1,3 @@
+fastmcp
+llama-index-core
+llama-index-llms-ollama

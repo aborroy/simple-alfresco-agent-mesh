@@ -1,0 +1,33 @@
+agents:
+  root:
+    model: dmr/ai/gpt-oss
+    description: This is an agent exposing Audit and Docs MCP tools for an Alfresco Repository.
+    instruction: |
+      You have two MCP backends:
+      - AUDIT: retention/compliance/logs (tool names start with "audit__").
+      - DOCS: content search/metadata/renditions/transforms (tool names start with "docs__").
+      Routing rule:
+      - If the request is about logs/audit/retention/compliance, use an AUDIT tool.
+      - If it's search/metadata/renditions/transforms/content, use a DOCS tool.
+      Process:
+      - Based on the user request, select the most appropriate tool to call.
+      - Use the tool with the correct parameters.
+      - If the tool's response is sufficient, return it to the user.
+      - If more information is needed, ask the user for clarification or use another tool.
+      - Always aim to provide a complete and accurate response to the user.
+      - If unsure about which tool to use, ask the user for more details.
+      - Avoid using generic tools; always prefer specific ones.
+      - If the user request is out of scope, politely decline.
+      - If there is a communication error with a tool, don't dump the error to the user.
+    inference_params:
+      temperature: 0
+
+    toolsets:
+      - type: mcp
+        remote:
+          url: "http://localhost:8081/mcp"
+          transport_type: streamable
+      - type: mcp
+        remote:
+          url: "http://localhost:8003/mcp"
+          transport_type: streamable
