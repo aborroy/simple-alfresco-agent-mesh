@@ -47,7 +47,7 @@ flowchart LR
 
   %% Routers
   subgraph Routers
-    CA[cagent - router:8085]
+    CA[cagent - local app]
     LG[langgraph - router:8085]
     LI[llamaindex - router:8085]
   end
