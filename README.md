@@ -151,15 +151,21 @@ docker compose --profile llamaindex up --build
 
 ### \[DOCS]
 
+```
 > I need to search for documents in Alfresco. Can you search for:
->
-> * Documents containing "budget"
-> * Maximum 5 results
+ * Documents containing "budget"
+ * Maximum 5 results
+```
 
 ### \[AUDIT]
 
+```
 > List Alfresco audit apps
+```
+
+```
 > List Alfresco audit entries for audit app "search"
+```
 
 Tips:
 
